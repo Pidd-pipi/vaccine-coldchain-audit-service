@@ -35,7 +35,7 @@ func (m *OpsStateMachine) Move(from, to OpsStatus, reason string) error {
 		return nil
 	}
 	if !opsTransitionTable[from][to] {
-		return fmt.Errorf("%v: %s to %s", ErrOpsTransition, from, to)
+		return fmt.Errorf("%w: %s to %s", ErrOpsTransition, from, to)
 	}
 	m.history = append(m.history, OpsTransition{From: from, To: to, Reason: reason})
 	return nil

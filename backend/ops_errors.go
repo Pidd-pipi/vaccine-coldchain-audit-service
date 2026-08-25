@@ -26,20 +26,28 @@ func (e *OpsError) Error() string {
 	return fmt.Sprintf("%s: %s: %v", e.Code, e.Operation, e.Cause)
 }
 func (e *OpsError) Unwrap() error { return e.Cause }
+
+// wrapOps wraps cause in an *OpsError so callers can inspect the underlying
+// sentinel with errors.Is. Returning the typed error (rather than a plain
+// fmt.Errorf string) is what keeps the HTTP status classification correct.
 func wrapOps(code, operation string, cause error) error {
-	return fmt.Errorf("%s: %s: %v", code, operation, cause)
+	return &OpsError{Code: code, Operation: operation, Cause: cause}
 }
+
+// opsCode classifies an operations error into a stable code for HTTP mapping.
+// It must use errors.Is (not ==) so that errors produced via fmt.Errorf("%w", ...)
+// or wrapOps still resolve to their sentinel category instead of "internal".
 func opsCode(err error) string {
 	switch {
-	case err == ErrOpsNotFound:
+	case opsIsNotFound(err):
 		return "not_found"
-	case err == ErrOpsConflict:
+	case opsIsConflict(err):
 		return "conflict"
-	case err == ErrOpsInvalid:
+	case opsIsInvalid(err):
 		return "invalid"
-	case err == ErrOpsTransition:
+	case opsIsTransition(err):
 		return "transition"
-	case err == ErrOpsPolicy:
+	case opsIsPolicy(err):
 		return "policy"
 	default:
 		return "internal"

@@ -132,17 +132,22 @@ func handleOpsTransition(w http.ResponseWriter, r *http.Request, service *OpsSer
 	opsJSON(w, http.StatusOK, record)
 }
 
-// opsHTTPStatus maps an operations error to an HTTP status code.
+// opsHTTPStatus maps an operations error to an HTTP status code. A revision
+// conflict (e.g. a duplicate audit record submission) is 409 Conflict; an
+// illegal status transition is 422 Unprocessable Entity — the request is
+// well-formed but cannot be applied to the current record state. These were
+// previously collapsed to 500, which is why the audit tool saw server errors
+// instead of the correct client-error classifications.
 func opsHTTPStatus(err error) int {
 	switch opsCode(err) {
 	case "not_found":
 		return http.StatusNotFound
 	case "conflict":
-		return http.StatusInternalServerError
+		return http.StatusConflict
 	case "invalid":
 		return http.StatusBadRequest
 	case "transition":
-		return http.StatusInternalServerError
+		return http.StatusUnprocessableEntity
 	case "policy":
 		return http.StatusBadRequest
 	default:
