@@ -128,10 +128,10 @@ func opsRule0708() OpsRule {
 }
 
 // opsWorkflowGate07 is the governance gate for entering the reviewing state: a
-// batch must carry captured temperature evidence.
+// batch must carry captured temperature evidence before it may be reviewed.
 func opsWorkflowGate07(record OpsRecord) error {
-	if record.LabelValue("reviewed") == "" {
-		return fmt.Errorf("%w: reviewed label required to enter reviewing", ErrOpsPolicy)
+	if record.LabelValue("evidence") == "" {
+		return fmt.Errorf("%w: evidence label required to enter reviewing", ErrOpsPolicy)
 	}
 	return nil
 }

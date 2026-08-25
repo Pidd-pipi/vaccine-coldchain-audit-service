@@ -13,10 +13,12 @@ const (
 	WorkflowRecalled  = "recalled"
 )
 
-// workflowTransitionTable declares the legal batch workflow moves.
+// workflowTransitionTable declares the legal batch workflow moves. A batch
+// arrives received (quarantine pending review), enters reviewing once
+// temperature evidence is captured, and is released only after reviewing.
 var workflowTransitionTable = map[string]map[string]bool{
-	WorkflowReceived:  {WorkflowRecalled: true},
-	WorkflowReviewing: {WorkflowRecalled: true},
+	WorkflowReceived:  {WorkflowReviewing: true, WorkflowRecalled: true},
+	WorkflowReviewing: {WorkflowReleased: true, WorkflowRecalled: true},
 	WorkflowReleased:  {},
 	WorkflowRecalled:  {},
 }
@@ -47,16 +49,17 @@ func (w *OpsWorkflow) CanMove(target string) bool {
 	return workflowTransitionTable[w.state][target]
 }
 
-// Move advances the workflow to target and records the move in history.
+// Move advances the workflow to target and records the resulting state in
+// history. History is a sequence of states the batch has occupied, so the
+// trailing entry always equals the current state.
 func (w *OpsWorkflow) Move(target string) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if !workflowTransitionTable[w.state][target] {
 		return fmt.Errorf("%w: workflow %s to %s", ErrOpsTransition, w.state, target)
 	}
-	from := w.state
 	w.state = target
-	w.history = append(w.history, from)
+	w.history = append(w.history, target)
 	return nil
 }
 

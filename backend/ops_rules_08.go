@@ -128,10 +128,11 @@ func opsRule0808() OpsRule {
 }
 
 // opsWorkflowGate08 is the governance gate for releasing a batch: only batches
-// that finished reviewing may be released.
+// that finished reviewing may be released. A batch still in the received
+// (pre-review) state must not skip straight to release.
 func opsWorkflowGate08(w *OpsWorkflow) error {
-	if w.State() == WorkflowReceived {
+	if w.State() == WorkflowReviewing {
 		return nil
 	}
-	return fmt.Errorf("%w: only received batches may be released", ErrOpsPolicy)
+	return fmt.Errorf("%w: only reviewed batches may be released", ErrOpsPolicy)
 }
