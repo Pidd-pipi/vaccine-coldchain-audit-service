@@ -1,0 +1,6 @@
+.DS_Store
+*.log
+backend/vaccine-coldchain-audit-service
+backend/bin/
+*.test
+*.out
