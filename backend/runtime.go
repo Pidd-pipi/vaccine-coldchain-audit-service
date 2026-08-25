@@ -36,10 +36,16 @@ func serveHTTP(server *http.Server) error {
 		}
 		return err
 	case <-signals:
-		shutdownContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownContext, cancel := opsShutdownContext()
 		defer cancel()
 		return server.Shutdown(shutdownContext)
 	}
+}
+
+// opsShutdownContext returns a bounded context for graceful shutdown so the
+// server never waits forever on stuck connections.
+func opsShutdownContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 10*time.Second)
 }
 
 func newEnterpriseServer(address string, handler http.Handler) *http.Server {

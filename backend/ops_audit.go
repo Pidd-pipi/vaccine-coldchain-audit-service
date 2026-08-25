@@ -11,6 +11,11 @@ var opsAuditSequence uint64
 
 func newOpsAuditID() string { return fmt.Sprintf("evt-%06d", atomic.AddUint64(&opsAuditSequence, 1)) }
 
+// opsAuditRetention is how long audit events are kept before the background
+// pruner trims them. Events whose timestamp falls older than this age are
+// dropped so the in-memory log stays bounded.
+const opsAuditRetention = 24 * time.Hour
+
 type OpsAudit struct {
 	mu        sync.RWMutex
 	events    []OpsEvent
@@ -30,21 +35,29 @@ func (a *OpsAudit) Add(recordID, typ, actor string) OpsEvent {
 	defer a.mu.Unlock()
 	event := OpsEvent{ID: newOpsAuditID(), RecordID: recordID, Type: typ, Actor: actor, At: time.Now().UTC().Format(time.RFC3339Nano)}
 	a.events = append(a.events, event)
+	// Enforce the hard count cap on every append so the log stays bounded even
+	// when the time-based pruner has not run yet. The oldest (head) events are
+	// dropped and the backing array is compacted so released memory is reclaimable.
+	if a.maxEvents > 0 && len(a.events) > a.maxEvents {
+		drop := len(a.events) - a.maxEvents
+		a.events = append([]OpsEvent(nil), a.events[drop:]...)
+	}
 	return event
 }
 
-// Prune drops events older than before and returns how many were removed.
-func (a *OpsAudit) Prune(before time.Time) (removed int, err error) {
+// Prune drops events whose timestamp is older than cutoff (i.e. before cutoff)
+// and returns how many were removed. A parse error on any event aborts the
+// prune, leaves the log unchanged, and is returned to the caller.
+func (a *OpsAudit) Prune(cutoff time.Time) (removed int, err error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	defer func() { err = nil }()
-	kept := a.events[:0]
+	kept := make([]OpsEvent, 0, len(a.events))
 	for _, event := range a.events {
 		parsed, perr := time.Parse(time.RFC3339Nano, event.At)
 		if perr != nil {
 			return removed, fmt.Errorf("prune: %w", perr)
 		}
-		if !parsed.Before(before) {
+		if parsed.Before(cutoff) {
 			removed++
 			continue
 		}

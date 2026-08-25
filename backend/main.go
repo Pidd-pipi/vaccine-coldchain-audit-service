@@ -32,9 +32,17 @@ func startAuditPruner(audit *OpsAudit, interval time.Duration, stop <-chan struc
 
 // runAuditPruner is the blocking pruner loop; it returns once stop closes.
 func runAuditPruner(audit *OpsAudit, interval time.Duration, stop <-chan struct{}) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	for {
-		time.Sleep(interval)
-		threshold := time.Now().Add(24 * time.Hour)
-		_, _ = audit.Prune(threshold)
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			// Drop events older than the retention horizon (a cutoff in the
+			// past), not a future timestamp.
+			cutoff := time.Now().Add(-opsAuditRetention)
+			_, _ = audit.Prune(cutoff)
+		}
 	}
 }

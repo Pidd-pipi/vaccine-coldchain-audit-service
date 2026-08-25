@@ -29,6 +29,12 @@ func opsExportAudit(dest string, events []OpsEvent, rules []OpsRule, open func(s
 			return newEvidenceFile(path)
 		}
 	}
+	if dest == "" {
+		dest = "./output"
+	}
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		return 0, err
+	}
 	written := 0
 	for _, event := range events {
 		path := filepath.Join(dest, sanitizeEventName(event.ID)+".jsonl")
